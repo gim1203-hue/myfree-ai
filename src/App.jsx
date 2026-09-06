@@ -1,98 +1,52 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import './App.css'
-import ChatWindow from './components/ChatWindow'
-import VoiceButton from './components/VoiceButton'
-import { useSpeechRecognition } from './hooks/useSpeechRecognition'
-import { useSpeechSynthesis } from './hooks/useSpeechSynthesis'
+import ChatTab from './components/ChatTab'
+import SearchTab from './components/SearchTab'
+import FilesTab from './components/FilesTab'
+import { useLocalStorage } from './hooks/useLocalStorage'
+
+const TABS = [
+  { id: 'chat', label: '💬 Chat' },
+  { id: 'search', label: '🔎 Web Search' },
+  { id: 'files', label: '📁 Files' },
+]
 
 function App() {
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState(null)
-
-  const { speak, stopSpeaking } = useSpeechSynthesis()
-
-  const sendMessage = useCallback(
-    async (text, { speakReply = false } = {}) => {
-      const trimmed = text.trim()
-      if (!trimmed) return
-
-      setErrorMessage(null)
-      const nextMessages = [...messages, { role: 'user', content: trimmed }]
-      setMessages(nextMessages)
-      setInput('')
-      setIsLoading(true)
-
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: nextMessages }),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Something went wrong talking to the AI.')
-        }
-
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
-
-        if (speakReply) {
-          speak(data.reply)
-        }
-      } catch (err) {
-        setErrorMessage(err.message)
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [messages, speak]
-  )
-
-  const { isListening, isSupported, startListening, stopListening } = useSpeechRecognition({
-    onResult: (transcript) => sendMessage(transcript, { speakReply: true }),
-  })
-
-  const handleFormSubmit = (e) => {
-    e.preventDefault()
-    sendMessage(input)
-  }
+  const [activeTab, setActiveTab] = useState('chat')
+  const [darkMode, setDarkMode] = useLocalStorage('my-ai-dark-mode', false)
 
   return (
-    <div className="app">
+    <div className={`app ${darkMode ? 'dark' : ''}`}>
       <header className="app-header">
+        <button
+          type="button"
+          className="dark-toggle"
+          onClick={() => setDarkMode((d) => !d)}
+          title="Toggle dark mode"
+        >
+          {darkMode ? '☀️' : '🌙'}
+        </button>
         <h1>My AI</h1>
         <p>Your free personal assistant — voice powered by your browser, brains powered by Gemini.</p>
       </header>
 
-      <main className="app-main">
-        <ChatWindow messages={messages} isLoading={isLoading} />
-
-        {errorMessage && <p className="chat-error">{errorMessage}</p>}
-
-        <form className="chat-form" onSubmit={handleFormSubmit}>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-          />
-          <button type="submit" disabled={isLoading}>Send</button>
-        </form>
-
-        <div className="voice-controls">
-          <VoiceButton
-            isListening={isListening}
-            isSupported={isSupported}
-            onStart={startListening}
-            onStop={stopListening}
-          />
-          <button type="button" className="stop-speaking" onClick={stopSpeaking}>
-            Stop speaking
+      <nav className="tab-bar">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={activeTab === tab.id ? 'tab active' : 'tab'}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
           </button>
-        </div>
+        ))}
+      </nav>
+
+      <main className="app-main">
+        {activeTab === 'chat' && <ChatTab />}
+        {activeTab === 'search' && <SearchTab />}
+        {activeTab === 'files' && <FilesTab />}
       </main>
     </div>
   )
