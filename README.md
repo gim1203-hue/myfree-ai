@@ -1,7 +1,17 @@
-# My AI — Free Edition (React + Web Speech API + Gemini)
+# LinkDeck (with My AI built in)
 
-A from-scratch rebuild of the "My AI" voice assistant that costs **$0** to
-run. No OpenAI Realtime API, no credit balance to run out of.
+Your LinkDeck link directory and your free "My AI" assistant, merged into
+one site. Same LinkDeck look and link categories as before, with the full
+AI toolset — Chat, Web Search, Weather, Radio, Calendar, Scratch Links,
+and Files — added as extra tabs in the same navigation bar. Costs **$0**
+to run: no OpenAI Realtime API, no credit balance to run out of.
+
+The AI in the Chat tab also knows about every link in your LinkDeck —
+ask it something like "what's the link to my radio project" or "where's
+my calendar app" and it'll answer with the real URL, instead of saying it
+doesn't know. Edit `src/data/linkdeck.js` to add, remove, or update a
+link, and both the LinkDeck tabs and the AI's knowledge update together
+automatically.
 
 ## What's included
 
@@ -12,6 +22,30 @@ run. No OpenAI Realtime API, no credit balance to run out of.
   in your browser (via localStorage) so refreshing the page doesn't lose
   it. Each AI reply has a "Copy" button, and there's a "Clear history"
   button when you want a fresh start.
+- **Voice/text commands:** typed or spoken, the Chat tab recognizes a
+  handful of exact phrasings and actually does them instead of just
+  talking about them:
+  - `play radio from <country>` — plays the top station for that country
+  - `weather in <place>` — looks up current conditions anywhere
+  - `what day is it` / `what's today's date`
+  - `what are my tasks today` / `do I have anything today`
+  - `save <something> on <day>` — e.g. "save call the dentist on Friday"
+
+  Anything phrased differently just goes to normal chat — Gemini knows
+  about these commands and will tell you the right phrasing rather than
+  pretending it did something it can't.
+- **Weather tab:** current temperature and conditions for any place on
+  Earth, powered by Open-Meteo — completely free, no API key, no signup.
+- **Radio tab:** pick a country, get its stations, and play/pause/skip
+  with a volume slider — the same free Radio Browser directory
+  WorldWave uses. Keeps playing while you switch tabs.
+- **Calendar tab:** pick a date, add notes for it, remove them later.
+  Saved in your browser's storage, so it's there for good unless you
+  clear your browser data — it doesn't sync across devices or browsers,
+  though (see "Making it more reliable" below if you want that).
+- **Project Links tab:** a holding pen for whatever websites belong to
+  your current project — add them as you find them, they stay until you
+  remove them.
 - **Web Search tab:** real Google search results (titles, links,
   snippets) styled like an actual Google results page, powered by
   SerpApi's free tier.
@@ -86,9 +120,37 @@ git push -u origin main
   browsers (Edge works too) — this is a browser limitation, not a bug
   in this code. Firefox/Safari don't support these APIs the same way.
 - Gemini's free tier has a daily limit; SerpApi's free tier resets
-  monthly (250 searches). Personal use shouldn't come close to
-  hitting either.
-- Chat history is saved per-browser (localStorage), not in a shared
-  database — it won't follow you to a different browser or device.
+  monthly (250 searches). Weather (Open-Meteo) and Radio (Radio
+  Browser) are both fully free with no key and no monthly cap.
+  Personal use shouldn't come close to hitting any of these.
+- Chat history, the Calendar, and Project Links are all saved
+  per-browser (localStorage), not in a shared database — none of them
+  will follow you to a different browser or device, and clearing your
+  browser's site data would clear them too.
+- The voice/text commands (radio, weather, calendar) use pattern
+  matching on a handful of specific phrasings, not full natural-language
+  understanding — see the exact list above. If a command doesn't work,
+  try it closer to that wording; anything else falls back to a normal
+  chat reply.
 - "Propose AI changes" (editing files with AI) from the original app
   isn't included yet — let me know if you want that added next.
+
+## Making it more reliable / next steps
+
+- **Cross-device calendar/links:** right now they're saved only in one
+  browser. If you want your calendar or project links to follow you
+  everywhere (phone, laptop, different browsers), the next step is a
+  small free database — you already have a Supabase account connected,
+  which has a generous free tier for exactly this. Say the word and
+  I'll wire it in.
+- **A second AI as backup:** if Gemini's daily free limit is ever hit,
+  the Chat tab will show an error instead of silently failing. Adding
+  a fallback to a second free model (so it keeps working that day) is
+  a small follow-up if you want extra reliability.
+- I built and reviewed this update in my own sandbox, including running
+  the actual command-parsing and date logic through real test cases (not
+  just reading the code) — but my sandbox doesn't have general internet
+  access, so I could not run `npm install`/`vite build` or make live
+  calls to the Weather/Radio APIs from here. Please do the normal
+  `npm install` then `vercel dev` check locally before deploying, the
+  same way you did for the last update — that's the real test.

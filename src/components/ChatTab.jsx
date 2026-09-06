@@ -4,6 +4,9 @@ import VoiceButton from './VoiceButton'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useAssistantActions } from '../context/AssistantActionsContext'
+import { interpretCommand, parseDatePhrase } from '../lib/commandRouter'
+import { fetchWeather } from '../lib/weather'
 
 const TYPING_MS_PER_CHUNK = 18
 
@@ -16,6 +19,7 @@ function ChatTab() {
   const typingTimerRef = useRef(null)
 
   const { speak, stopSpeaking } = useSpeechSynthesis()
+  const actions = useAssistantActions()
 
   useEffect(() => () => clearInterval(typingTimerRef.current), [])
 
@@ -37,6 +41,59 @@ function ChatTab() {
     }, TYPING_MS_PER_CHUNK)
   }, [setMessages, speak])
 
+  // Runs an already-recognized command (from interpretCommand) and returns
+  // the plain-text reply to show/speak back. Anything that goes wrong here
+  // (a bad country name, an unparseable date) becomes a friendly sentence
+  // instead of an error, since this is standing in for a real conversation.
+  const runCommand = useCallback(
+    async (command) => {
+      switch (command.type) {
+        case 'radio': {
+          if (!actions?.radio) return "Radio isn't available right now."
+          const result = await actions.radio.playCountry(command.country)
+          return result.success
+            ? `Playing ${result.stationName} from ${result.countryName}.`
+            : `I couldn't find a radio station for "${command.country}" — try the Radio tab to browse countries.`
+        }
+        case 'weather': {
+          try {
+            const w = await fetchWeather(command.location)
+            return `${w.place}: ${w.temperature}°${w.unit}, ${w.description}.`
+          } catch (err) {
+            return err.message || `I couldn't find weather for "${command.location}".`
+          }
+        }
+        case 'today': {
+          const d = new Date()
+          return `Today is ${d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
+        }
+        case 'tasks-today': {
+          if (!actions?.calendar) return "The calendar isn't available right now."
+          const events = actions.calendar.getTodayEvents()
+          if (events.length === 0) return "You don't have anything saved for today."
+          return `Today you have: ${events.map((e) => e.text).join(', ')}.`
+        }
+        case 'save-event': {
+          if (!actions?.calendar) return "The calendar isn't available right now."
+          const dateStr = parseDatePhrase(command.datePhrase)
+          if (!dateStr) {
+            return `I wasn't sure which day "${command.datePhrase}" means — try saying "today", "tomorrow", a weekday name, or a date like "December 5", or add it directly in the Calendar tab.`
+          }
+          actions.calendar.addEvent(dateStr, command.text)
+          const friendly = new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })
+          return `Saved "${command.text}" on ${friendly}.`
+        }
+        default:
+          return null
+      }
+    },
+    [actions]
+  )
+
   const sendMessage = useCallback(
     async (text, { speakReply = false } = {}) => {
       const trimmed = text.trim()
@@ -49,6 +106,13 @@ function ChatTab() {
       setIsLoading(true)
 
       try {
+        const command = interpretCommand(trimmed)
+        if (command) {
+          const replyText = await runCommand(command)
+          revealReply(replyText, { speakReply })
+          return
+        }
+
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -63,12 +127,12 @@ function ChatTab() {
 
         revealReply(data.reply, { speakReply })
       } catch (err) {
-        setErrorMessage(err.message)
+        setErrorMessage(err.message || 'Something went wrong.')
       } finally {
         setIsLoading(false)
       }
     },
-    [messages, setMessages, revealReply]
+    [messages, setMessages, revealReply, runCommand]
   )
 
   const { isListening, isSupported, startListening, stopListening } = useSpeechRecognition({
@@ -96,7 +160,7 @@ function ChatTab() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your message..."
+          placeholder="Type your message, or a command like 'weather in Tokyo'..."
         />
         <button type="submit" disabled={isLoading}>Send</button>
       </form>
@@ -117,6 +181,11 @@ function ChatTab() {
           </button>
         )}
       </div>
+
+      <p className="chat-command-hint">
+        Try: "play radio from Pakistan" · "weather in Tokyo" · "what day is it" ·
+        "what are my tasks today" · "save call the dentist on Friday"
+      </p>
     </>
   )
 }

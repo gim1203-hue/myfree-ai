@@ -1,6 +1,48 @@
 // Vercel serverless function: POST /api/chat
 // Keeps the Gemini API key on the server, never sent to the browser.
 
+import { LINKDECK_DATA } from '../src/data/linkdeck.js'
+
+// Gemini itself can't touch the Radio/Weather/Calendar tabs — those are
+// handled by a separate, exact-phrasing command router before a message
+// ever reaches this function (see src/lib/commandRouter.js). This tells
+// Gemini about that split so it's honest when a request doesn't match
+// one of those phrasings, instead of claiming to have done something it
+// has no way to actually do.
+
+// Builds a compact "here's every link you have" reference, grouped by
+// category, from the same data file that powers the LinkDeck tabs. Keep
+// this to title + URL (skip the longer descriptions) so it stays cheap
+// to send with every chat message while still covering all 100+ links.
+function buildLinkDeckDirectory() {
+  const byCategory = new Map()
+  for (const item of LINKDECK_DATA) {
+    if (!byCategory.has(item.cat)) byCategory.set(item.cat, [])
+    byCategory.get(item.cat).push(`${item.title} — ${item.url}`)
+  }
+  return [...byCategory.entries()]
+    .map(([cat, entries]) => `${cat}:\n${entries.map((e) => `  - ${e}`).join('\n')}`)
+    .join('\n')
+}
+
+const LINKDECK_DIRECTORY = buildLinkDeckDirectory()
+
+const SYSTEM_PROMPT = `You are the AI built into "LinkDeck", a personal site with several tabs: LinkDeck's own link categories (My Live Apps, Dashboards & Accounts, and more), plus Chat, Web Search, Weather, Radio, Calendar, Scratch Links, and Files.
+
+You (the chat model) cannot directly play radio stations, look up weather, or read/write the calendar yourself — those only happen when the person's message is recognized by the site's command router, BEFORE it reaches you. That router only recognizes fairly exact phrasings:
+- "play radio from <country>"
+- "weather in <place>"
+- "what day is it" / "what's today's date"
+- "what are my tasks today" / "do I have anything today"
+- "save <something> on <day>"
+
+If you are replying to a message, it means the router did NOT recognize it as one of those commands. So if someone asks you to play music, check weather, or save/recall something on the calendar, do not claim you did it — you can't. Instead, tell them the exact phrasing above that would work, in one short sentence, and/or point them to the matching tab (Radio, Weather, or Calendar). For everything else, just have a normal, helpful conversation.
+
+You also act as a librarian for the person's own websites and tools. Below is their full LinkDeck directory — every link they've saved, grouped by category, in "Title — URL" form. When they ask where something is, what the link to one of their own projects is, or which tool they use for something, answer directly by name with the real URL from this list — do not say you don't have access to it. You cannot open a link yourself, so give them the URL to click; you also can't add, remove, or edit LinkDeck entries — if asked, point them to the LinkDeck tab.
+
+LinkDeck directory:
+${LINKDECK_DIRECTORY}`
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -35,7 +77,10 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'x-goog-api-key': apiKey,
         },
-        body: JSON.stringify({ contents }),
+        body: JSON.stringify({
+          contents,
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        }),
       }
     )
 
