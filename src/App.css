@@ -1,4 +1,4 @@
-* {
+or would you rather I work from a copy and hand you back files to paste in yourself, like before?* {
   box-sizing: border-box;
 }
 
@@ -913,6 +913,32 @@ body {
   text-transform: uppercase;
   padding: 4px 10px;
   border-radius: 999px;
+}
+
+.calendar-clear-day {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #b4493f;
+  background: var(--surface);
+  color: #a13a2f;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calendar-clear-day:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.calendar-clear-day:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.calendar-clear-day:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .calendar-list {

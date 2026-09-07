@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { toToday } from '../hooks/useCalendar'
 
 function CalendarTab({ calendar }) {
-  const { getEventsForDate, addEvent, removeEvent } = calendar
+  const { getEventsForDate, addEvent, removeEvent, clearDate } = calendar
   const [selectedDate, setSelectedDate] = useState(toToday())
   const [text, setText] = useState('')
 
@@ -11,9 +11,28 @@ function CalendarTab({ calendar }) {
   const handleAdd = (e) => {
     e.preventDefault()
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed || !selectedDate) return
     addEvent(selectedDate, trimmed)
     setText('')
+  }
+
+  const handleClearDay = () => {
+    if (!selectedDate || dayEvents.length === 0) return
+
+    const readableDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+    const entryWord = dayEvents.length === 1 ? 'entry' : 'entries'
+
+    if (
+      window.confirm(
+        `Delete all ${dayEvents.length} ${entryWord} saved for ${readableDate}? This cannot be undone.`
+      )
+    ) {
+      clearDate(selectedDate)
+    }
   }
 
   return (
@@ -23,8 +42,17 @@ function CalendarTab({ calendar }) {
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
+          aria-label="Selected calendar date"
         />
         {selectedDate === toToday() && <span className="calendar-today-badge">Today</span>}
+        <button
+          type="button"
+          className="calendar-clear-day"
+          onClick={handleClearDay}
+          disabled={!selectedDate || dayEvents.length === 0}
+        >
+          Clear selected day
+        </button>
       </div>
 
       <form className="chat-form" onSubmit={handleAdd}>
@@ -33,8 +61,9 @@ function CalendarTab({ calendar }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add something for this day..."
+          disabled={!selectedDate}
         />
-        <button type="submit">Add</button>
+        <button type="submit" disabled={!selectedDate}>Add</button>
       </form>
 
       {dayEvents.length === 0 ? (

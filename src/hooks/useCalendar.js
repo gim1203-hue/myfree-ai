@@ -1,6 +1,13 @@
 import { useCallback } from 'react'
 import { useLocalStorage } from './useLocalStorage'
 
+export function clearDateEntries(events, dateStr) {
+  if (!dateStr || !Object.prototype.hasOwnProperty.call(events, dateStr)) return events
+  const next = { ...events }
+  delete next[dateStr]
+  return next
+}
+
 // YYYY-MM-DD for today, in the browser's own local timezone.
 export function toToday() {
   const d = new Date()
@@ -14,15 +21,14 @@ export function toDateStr(d) {
   return `${y}-${m}-${day}`
 }
 
-// A calendar that "saves forever": entries live in this browser's
-// localStorage, keyed by date, and are never cleared automatically.
-// (They stay only in this browser — clearing browsing data would remove
-// them, and they won't follow you to a different device.)
+// Calendar entries live in localStorage, keyed by date, and are never cleared
+// automatically. They remain only in this browser unless the user removes them.
 export function useCalendar() {
   const [events, setEvents] = useLocalStorage('my-ai-calendar', {})
 
   const addEvent = useCallback(
     (dateStr, text) => {
+      if (!dateStr) return
       setEvents((prev) => {
         const dayList = prev[dateStr] || []
         return {
@@ -47,8 +53,15 @@ export function useCalendar() {
     [setEvents]
   )
 
+  const clearDate = useCallback(
+    (dateStr) => {
+      setEvents((prev) => clearDateEntries(prev, dateStr))
+    },
+    [setEvents]
+  )
+
   const getEventsForDate = useCallback((dateStr) => events[dateStr] || [], [events])
   const getTodayEvents = useCallback(() => events[toToday()] || [], [events])
 
-  return { events, addEvent, removeEvent, getEventsForDate, getTodayEvents }
+  return { events, addEvent, removeEvent, clearDate, getEventsForDate, getTodayEvents }
 }
